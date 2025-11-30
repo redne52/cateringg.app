@@ -60,10 +60,14 @@ class LocalRepo {
       try {
         final stockJson = jsonEncode(_stockItems.map((e) => e.toMap()).toList());
         final usageJson = jsonEncode(_usages.map((e) => e.toMap()).toList());
+        
         html.window.localStorage[_stockItemsKey] = stockJson;
         html.window.localStorage[_usagesKey] = usageJson;
-      } catch (e) {
-        print('localStorage save error: $e');
+        
+        print('✓ localStorage saved: ${_stockItems.length} stocks, ${_usages.length} usages');
+      } catch (e, st) {
+        print('✗ localStorage save error: $e');
+        print('  StackTrace: $st');
       }
     }
   }
@@ -74,17 +78,25 @@ class LocalRepo {
         final stockJson = html.window.localStorage[_stockItemsKey];
         final usageJson = html.window.localStorage[_usagesKey];
 
+        print('Loading from localStorage...');
+        print('  Stock data exists: ${stockJson != null && stockJson.isNotEmpty}');
+        print('  Usage data exists: ${usageJson != null && usageJson.isNotEmpty}');
+
         if (stockJson != null && stockJson.isNotEmpty) {
           final List<dynamic> decoded = jsonDecode(stockJson);
           _stockItems.addAll(decoded.map((item) => StockItem.fromMap(item as Map<String, dynamic>)));
+          print('  ✓ Loaded ${_stockItems.length} stock items');
         }
 
         if (usageJson != null && usageJson.isNotEmpty) {
           final List<dynamic> decoded = jsonDecode(usageJson);
           _usages.addAll(decoded.map((usage) => Usage.fromMap(usage as Map<String, dynamic>)));
+          print('  ✓ Loaded ${_usages.length} usages');
         }
-      } catch (e) {
-        print('localStorage load error: $e');
+      } catch (e, st) {
+        print('✗ localStorage load error: $e');
+        print('  StackTrace: $st');
       }
     }
   }
+}
