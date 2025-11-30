@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'dart:html' as html;
 import '../models/stock_item.dart';
 import '../models/usage.dart';
+
+// Web platform için localStorage erişimi
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html show window;
 
 class LocalRepo {
   LocalRepo._privateConstructor() {
@@ -41,7 +44,6 @@ class LocalRepo {
   }
 
   void addUsage(Usage usage) {
-    // decrement stock quantity if item exists
     final item = _stockItems.firstWhere((e) => e.id == usage.stockItemId, orElse: () => StockItem.empty());
     if (!item.isEmpty) {
       item.quantity = (item.quantity - usage.quantity).clamp(0.0, double.infinity);
@@ -54,49 +56,37 @@ class LocalRepo {
     return admins[email] == password;
   }
 
-  // localStorage kaydetme ve yükleme
   void _saveToLocalStorage() {
-    if (kIsWeb) {
-      try {
-        final stockJson = jsonEncode(_stockItems.map((e) => e.toMap()).toList());
-        final usageJson = jsonEncode(_usages.map((e) => e.toMap()).toList());
-        
-        html.window.localStorage[_stockItemsKey] = stockJson;
-        html.window.localStorage[_usagesKey] = usageJson;
-        
-        print('✓ localStorage saved: ${_stockItems.length} stocks, ${_usages.length} usages');
-      } catch (e, st) {
-        print('✗ localStorage save error: $e');
-        print('  StackTrace: $st');
-      }
+    if (!kIsWeb) return;
+    try {
+      final stockJson = jsonEncode(_stockItems.map((e) => e.toMap()).toList());
+      final usageJson = jsonEncode(_usages.map((e) => e.toMap()).toList());
+      html.window.localStorage[_stockItemsKey] = stockJson;
+      html.window.localStorage[_usagesKey] = usageJson;
+      print('✓ Saved to localStorage');
+    } catch (e) {
+      print('✗ Save error: $e');
     }
   }
 
   void _loadFromLocalStorage() {
-    if (kIsWeb) {
-      try {
-        final stockJson = html.window.localStorage[_stockItemsKey];
-        final usageJson = html.window.localStorage[_usagesKey];
+    if (!kIsWeb) return;
+    try {
+      final stockJson = html.window.localStorage[_stockItemsKey];
+      final usageJson = html.window.localStorage[_usagesKey];
 
-        print('Loading from localStorage...');
-        print('  Stock data exists: ${stockJson != null && stockJson.isNotEmpty}');
-        print('  Usage data exists: ${usageJson != null && usageJson.isNotEmpty}');
-
-        if (stockJson != null && stockJson.isNotEmpty) {
-          final List<dynamic> decoded = jsonDecode(stockJson);
-          _stockItems.addAll(decoded.map((item) => StockItem.fromMap(item as Map<String, dynamic>)));
-          print('  ✓ Loaded ${_stockItems.length} stock items');
-        }
-
-        if (usageJson != null && usageJson.isNotEmpty) {
-          final List<dynamic> decoded = jsonDecode(usageJson);
-          _usages.addAll(decoded.map((usage) => Usage.fromMap(usage as Map<String, dynamic>)));
-          print('  ✓ Loaded ${_usages.length} usages');
-        }
-      } catch (e, st) {
-        print('✗ localStorage load error: $e');
-        print('  StackTrace: $st');
+      if (stockJson != null && stockJson.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(stockJson);
+        _stockItems.addAll(decoded.map((item) => StockItem.fromMap(item as Map<String, dynamic>)));
       }
+
+      if (usageJson != null && usageJson.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(usageJson);
+        _usages.addAll(decoded.map((usage) => Usage.fromMap(usage as Map<String, dynamic>)));
+      }
+      print('✓ Loaded from localStorage');
+    } catch (e) {
+      print('✗ Load error: $e');
     }
   }
 }
