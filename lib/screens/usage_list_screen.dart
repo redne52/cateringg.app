@@ -149,9 +149,11 @@ class _UsageListScreenState extends State<UsageListScreen> {
     );
 
     if (result != null) {
-      // Eski kaydı sileyip yeniyi ekle
+      // Eski kaydı sileyip yeniyi ekle (stok indirmeden)
       _deleteUsageById(usage.id);
-      LocalRepo.instance.addUsage(result);
+      // Direkt listeye ekle, stok indirmeden
+      LocalRepo.instance.usages.add(result);
+      LocalRepo.instance.saveToLocalStorage();
       _refresh();
     }
   }
@@ -178,6 +180,16 @@ class _UsageListScreenState extends State<UsageListScreen> {
   }
 
   void _deleteUsageById(String id) {
+    final usage = LocalRepo.instance.usages.firstWhere((e) => e.id == id, orElse: () => Usage(date: DateTime.now(), userEmail: '', stockItemId: '', quantity: 0, persons: 0, cost: 0));
+    
+    // Silmeden önce stok geri ekle
+    if (usage.stockItemId.isNotEmpty) {
+      final item = LocalRepo.instance.getStockItems().firstWhere((e) => e.id == usage.stockItemId, orElse: () => StockItem.empty());
+      if (!item.isEmpty) {
+        item.quantity += usage.quantity;
+      }
+    }
+    
     LocalRepo.instance.usages.removeWhere((e) => e.id == id);
     LocalRepo.instance.saveToLocalStorage();
   }
