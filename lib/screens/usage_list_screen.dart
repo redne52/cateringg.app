@@ -11,6 +11,7 @@ class UsageListScreen extends StatefulWidget {
 class _UsageListScreenState extends State<UsageListScreen> {
   List<Usage> usages = [];
   List<StockItem> items = [];
+  DateTime? _selectedDate;
 
   @override
   void initState() {
@@ -25,7 +26,34 @@ class _UsageListScreenState extends State<UsageListScreen> {
     });
   }
 
+  List<Usage> _getFilteredUsages() {
+    if (_selectedDate == null) return usages;
+    return usages.where((u) {
+      return u.date.year == _selectedDate!.year &&
+          u.date.month == _selectedDate!.month &&
+          u.date.day == _selectedDate!.day;
+    }).toList();
+  }
+
+  void _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
+  }
+
+  void _clearDateFilter() {
+    setState(() => _selectedDate = null);
+  }
+
   void _addUsage() async {
+    DateTime usageDate = DateTime.now();
+    
     final selected = await showDialog<Usage>(
       context: context,
       builder: (c) {
@@ -39,6 +67,23 @@ class _UsageListScreenState extends State<UsageListScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  ListTile(
+                    title: Text('Tarih'),
+                    subtitle: Text('${usageDate.day}.${usageDate.month}.${usageDate.year}'),
+                    trailing: Icon(Icons.calendar_today),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: usageDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setState2(() => usageDate = picked);
+                      }
+                    },
+                  ),
+                  SizedBox(height: 8),
                   DropdownButtonFormField<StockItem>(
                     items: items.map((e) => DropdownMenuItem(value: e, child: Text(e.name))).toList(),
                     onChanged: (v) => setState2(() => chosen = v),
@@ -60,7 +105,7 @@ class _UsageListScreenState extends State<UsageListScreen> {
                   final persons = int.tryParse(personsCtrl.text) ?? 1;
                   final cost = qty * chosen!.unitPrice;
                   final usage = Usage(
-                    date: DateTime.now(),
+                    date: usageDate,
                     userEmail: 'admin@catering.com',
                     stockItemId: chosen!.id,
                     quantity: qty,
@@ -84,7 +129,9 @@ class _UsageListScreenState extends State<UsageListScreen> {
   }
 
   void _editUsage(Usage usage) async {
+    print('DEBUG: _editUsage called for ${usage.id}');
     final item = items.firstWhere((e) => e.id == usage.stockItemId, orElse: () => StockItem.empty());
+    print('DEBUG: Found item: ${item.name}');
 
     final result = await showDialog<Usage>(
       context: context,
@@ -104,6 +151,7 @@ class _UsageListScreenState extends State<UsageListScreen> {
                     value: chosen,
                     items: items.map((e) => DropdownMenuItem(value: e, child: Text(e.name))).toList(),
                     onChanged: (v) => setState2(() => chosen = v),
+                    isExpanded: true,
                   ),
                   SizedBox(height: 8),
                   TextField(
@@ -124,7 +172,10 @@ class _UsageListScreenState extends State<UsageListScreen> {
               TextButton(onPressed: () => Navigator.of(c).pop(), child: Text('İptal')),
               TextButton(
                 onPressed: () {
-                  if (chosen == null) return;
+                  if (chosen == null) {
+                    print('DEBUG: chosen is null');
+                    return;
+                  }
                   final qty = double.tryParse(qtyCtrl.text) ?? 0.0;
                   final persons = int.tryParse(personsCtrl.text) ?? 1;
                   final cost = qty * chosen!.unitPrice;
@@ -138,6 +189,7 @@ class _UsageListScreenState extends State<UsageListScreen> {
                     persons: persons,
                     cost: cost,
                   );
+                  print('DEBUG: Returning updated usage: ${updated.id}');
                   Navigator.of(c).pop(updated);
                 },
                 child: Text('Kaydet'),
@@ -148,6 +200,7 @@ class _UsageListScreenState extends State<UsageListScreen> {
       },
     );
 
+    print('DEBUG: Dialog result: ${result?.id}');
     if (result != null) {
       // Eski kaydı sileyip yeniyi ekle (stok indirmeden)
       _deleteUsageById(usage.id);
@@ -155,6 +208,7 @@ class _UsageListScreenState extends State<UsageListScreen> {
       LocalRepo.instance.usages.add(result);
       LocalRepo.instance.saveToLocalStorage();
       _refresh();
+      print('DEBUG: Usage updated successfully');
     }
   }
 
@@ -196,44 +250,92 @@ class _UsageListScreenState extends State<UsageListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _getFilteredUsages();
+    
     return Scaffold(
       appBar: AppBar(title: Text('Günlük Çıkışlar')),
-      body: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: usages.isEmpty
-            ? Center(child: Text('Henüz günlük çıkış kaydı yok.'))
-            : ListView.builder(
-                itemCount: usages.length,
-                itemBuilder: (c, i) {
-                  final u = usages[i];
-                  final item = items.firstWhere((e) => e.id == u.stockItemId, orElse: () => StockItem.empty());
-                  return Card(
-                    child: ListTile(
-                      title: Text(item.isEmpty ? 'Bilinmeyen' : item.name),
-                      subtitle: Text('${u.quantity} ${item.unit} • ₺${u.cost.toStringAsFixed(2)} • ${u.persons} kişi'),
-                      trailing: SizedBox(
-                        width: 120,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            IconButton(
-                              icon: Icon(Icons.edit, size: 20),
-                              onPressed: () => _editUsage(u),
-                              constraints: BoxConstraints(minWidth: 40, minHeight: 40),
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.delete, size: 20, color: Colors.red),
-                              onPressed: () => _deleteUsage(u),
-                              constraints: BoxConstraints(minWidth: 40, minHeight: 40),
-                            ),
-                            Text('${u.date.day}/${u.date.month}'),
-                          ],
-                        ),
+      body: Column(
+        children: [
+          // Tarih filtresi
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _selectedDate == null
+                                ? 'Tüm Tarihler'
+                                : '${_selectedDate!.day}.${_selectedDate!.month}.${_selectedDate!.year}',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.calendar_today),
+                                onPressed: _pickDate,
+                              ),
+                              if (_selectedDate != null)
+                                IconButton(
+                                  icon: Icon(Icons.clear),
+                                  onPressed: _clearDateFilter,
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Listesi
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: filtered.isEmpty
+                  ? Center(child: Text('Bu tarihe ait günlük çıkış kaydı yok.'))
+                  : ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (c, i) {
+                        final u = filtered[i];
+                        final item = items.firstWhere((e) => e.id == u.stockItemId, orElse: () => StockItem.empty());
+                        return Card(
+                          child: ListTile(
+                            title: Text(item.isEmpty ? 'Bilinmeyen' : item.name),
+                            subtitle: Text('${u.quantity} ${item.unit} • ₺${u.cost.toStringAsFixed(2)} • ${u.persons} kişi'),
+                            trailing: SizedBox(
+                              width: 120,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(Icons.edit, size: 20),
+                                    onPressed: () => _editUsage(u),
+                                    constraints: BoxConstraints(minWidth: 40, minHeight: 40),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(Icons.delete, size: 20, color: Colors.red),
+                                    onPressed: () => _deleteUsage(u),
+                                    constraints: BoxConstraints(minWidth: 40, minHeight: 40),
+                                  ),
+                                  Text('${u.date.day}/${u.date.month}'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(onPressed: _addUsage, child: Icon(Icons.add)),
     );
