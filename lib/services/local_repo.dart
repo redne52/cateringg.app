@@ -1,9 +1,13 @@
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'dart:html' as html;
 import '../models/stock_item.dart';
 import '../models/usage.dart';
 
 class LocalRepo {
-  LocalRepo._privateConstructor();
+  LocalRepo._privateConstructor() {
+    _loadFromLocalStorage();
+  }
   static final LocalRepo instance = LocalRepo._privateConstructor();
 
   final Map<String, String> admins = {
@@ -13,20 +17,27 @@ class LocalRepo {
   final List<StockItem> _stockItems = [];
   final List<Usage> _usages = [];
 
+  // localStorage keys
+  static const String _stockItemsKey = 'catering_stock_items';
+  static const String _usagesKey = 'catering_usages';
+
   List<StockItem> getStockItems() => List.unmodifiable(_stockItems);
   List<Usage> getUsages() => List.unmodifiable(_usages);
 
   void addStockItem(StockItem item) {
     _stockItems.add(item);
+    _saveToLocalStorage();
   }
 
   void updateStockItem(StockItem item) {
     final idx = _stockItems.indexWhere((e) => e.id == item.id);
     if (idx != -1) _stockItems[idx] = item;
+    _saveToLocalStorage();
   }
 
   void removeStockItem(String id) {
     _stockItems.removeWhere((e) => e.id == id);
+    _saveToLocalStorage();
   }
 
   void addUsage(Usage usage) {
@@ -36,9 +47,44 @@ class LocalRepo {
       item.quantity = (item.quantity - usage.quantity).clamp(0.0, double.infinity);
     }
     _usages.add(usage);
+    _saveToLocalStorage();
   }
 
   bool authenticate(String email, String password) {
     return admins[email] == password;
   }
-}
+
+  // localStorage kaydetme ve yükleme
+  void _saveToLocalStorage() {
+    if (kIsWeb) {
+      try {
+        final stockJson = jsonEncode(_stockItems.map((e) => e.toMap()).toList());
+        final usageJson = jsonEncode(_usages.map((e) => e.toMap()).toList());
+        html.window.localStorage[_stockItemsKey] = stockJson;
+        html.window.localStorage[_usagesKey] = usageJson;
+      } catch (e) {
+        print('localStorage save error: $e');
+      }
+    }
+  }
+
+  void _loadFromLocalStorage() {
+    if (kIsWeb) {
+      try {
+        final stockJson = html.window.localStorage[_stockItemsKey];
+        final usageJson = html.window.localStorage[_usagesKey];
+
+        if (stockJson != null && stockJson.isNotEmpty) {
+          final List<dynamic> decoded = jsonDecode(stockJson);
+          _stockItems.addAll(decoded.map((item) => StockItem.fromMap(item as Map<String, dynamic>)));
+        }
+
+        if (usageJson != null && usageJson.isNotEmpty) {
+          final List<dynamic> decoded = jsonDecode(usageJson);
+          _usages.addAll(decoded.map((usage) => Usage.fromMap(usage as Map<String, dynamic>)));
+        }
+      } catch (e) {
+        print('localStorage load error: $e');
+      }
+    }
+  }
