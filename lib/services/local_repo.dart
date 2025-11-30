@@ -18,29 +18,29 @@ class LocalRepo {
   };
 
   final List<StockItem> _stockItems = [];
-  final List<Usage> _usages = [];
+  List<Usage> usages = [];
 
   // localStorage keys
   static const String _stockItemsKey = 'catering_stock_items';
   static const String _usagesKey = 'catering_usages';
 
   List<StockItem> getStockItems() => List.unmodifiable(_stockItems);
-  List<Usage> getUsages() => List.unmodifiable(_usages);
+  List<Usage> getUsages() => List.unmodifiable(usages);
 
   void addStockItem(StockItem item) {
     _stockItems.add(item);
-    _saveToLocalStorage();
+    saveToLocalStorage();
   }
 
   void updateStockItem(StockItem item) {
     final idx = _stockItems.indexWhere((e) => e.id == item.id);
     if (idx != -1) _stockItems[idx] = item;
-    _saveToLocalStorage();
+    saveToLocalStorage();
   }
 
   void removeStockItem(String id) {
     _stockItems.removeWhere((e) => e.id == id);
-    _saveToLocalStorage();
+    saveToLocalStorage();
   }
 
   void addUsage(Usage usage) {
@@ -48,19 +48,19 @@ class LocalRepo {
     if (!item.isEmpty) {
       item.quantity = (item.quantity - usage.quantity).clamp(0.0, double.infinity);
     }
-    _usages.add(usage);
-    _saveToLocalStorage();
+    usages.add(usage);
+    saveToLocalStorage();
   }
 
   bool authenticate(String email, String password) {
     return admins[email] == password;
   }
 
-  void _saveToLocalStorage() {
+  void saveToLocalStorage() {
     if (!kIsWeb) return;
     try {
       final stockJson = jsonEncode(_stockItems.map((e) => e.toMap()).toList());
-      final usageJson = jsonEncode(_usages.map((e) => e.toMap()).toList());
+      final usageJson = jsonEncode(usages.map((e) => e.toMap()).toList());
       html.window.localStorage[_stockItemsKey] = stockJson;
       html.window.localStorage[_usagesKey] = usageJson;
       print('✓ Saved to localStorage');
@@ -82,11 +82,12 @@ class LocalRepo {
 
       if (usageJson != null && usageJson.isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(usageJson);
-        _usages.addAll(decoded.map((usage) => Usage.fromMap(usage as Map<String, dynamic>)));
+        usages.addAll(decoded.map((usage) => Usage.fromMap(usage as Map<String, dynamic>)));
       }
       print('✓ Loaded from localStorage');
     } catch (e) {
       print('✗ Load error: $e');
     }
   }
+}
 }

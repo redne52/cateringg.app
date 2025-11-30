@@ -37,13 +37,16 @@ class _UsageListScreenState extends State<UsageListScreen> {
             title: Text('Yeni Günlük Çıkış'),
             content: SingleChildScrollView(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<StockItem>(
                     items: items.map((e) => DropdownMenuItem(value: e, child: Text(e.name))).toList(),
                     onChanged: (v) => setState2(() => chosen = v),
                     hint: Text('Malzeme seçin'),
                   ),
+                  SizedBox(height: 8),
                   TextField(controller: qtyCtrl, decoration: InputDecoration(labelText: 'Miktar'), keyboardType: TextInputType.number),
+                  SizedBox(height: 8),
                   TextField(controller: personsCtrl, decoration: InputDecoration(labelText: 'Satış - kaç kişiye'), keyboardType: TextInputType.number),
                 ],
               ),
@@ -80,6 +83,105 @@ class _UsageListScreenState extends State<UsageListScreen> {
     }
   }
 
+  void _editUsage(Usage usage) async {
+    final item = items.firstWhere((e) => e.id == usage.stockItemId, orElse: () => StockItem.empty());
+
+    final result = await showDialog<Usage>(
+      context: context,
+      builder: (c) {
+        StockItem? chosen = item.isEmpty ? null : item;
+        final qtyCtrl = TextEditingController(text: usage.quantity.toString());
+        final personsCtrl = TextEditingController(text: usage.persons.toString());
+
+        return StatefulBuilder(builder: (c2, setState2) {
+          return AlertDialog(
+            title: Text('Günlük Çıkışı Düzenle'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<StockItem>(
+                    value: chosen,
+                    items: items.map((e) => DropdownMenuItem(value: e, child: Text(e.name))).toList(),
+                    onChanged: (v) => setState2(() => chosen = v),
+                  ),
+                  SizedBox(height: 8),
+                  TextField(
+                    controller: qtyCtrl,
+                    decoration: InputDecoration(labelText: 'Miktar'),
+                    keyboardType: TextInputType.number,
+                  ),
+                  SizedBox(height: 8),
+                  TextField(
+                    controller: personsCtrl,
+                    decoration: InputDecoration(labelText: 'Satış - kaç kişiye'),
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(c).pop(), child: Text('İptal')),
+              TextButton(
+                onPressed: () {
+                  if (chosen == null) return;
+                  final qty = double.tryParse(qtyCtrl.text) ?? 0.0;
+                  final persons = int.tryParse(personsCtrl.text) ?? 1;
+                  final cost = qty * chosen!.unitPrice;
+
+                  final updated = Usage(
+                    id: usage.id,
+                    date: usage.date,
+                    userEmail: usage.userEmail,
+                    stockItemId: chosen!.id,
+                    quantity: qty,
+                    persons: persons,
+                    cost: cost,
+                  );
+                  Navigator.of(c).pop(updated);
+                },
+                child: Text('Kaydet'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+
+    if (result != null) {
+      // Eski kaydı sileyip yeniyi ekle
+      _deleteUsageById(usage.id);
+      LocalRepo.instance.addUsage(result);
+      _refresh();
+    }
+  }
+
+  void _deleteUsage(Usage usage) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('Sil'),
+        content: Text('Bu kaydı silmek istediğinizden emin misiniz?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(c).pop(), child: Text('İptal')),
+          TextButton(
+            onPressed: () {
+              _deleteUsageById(usage.id);
+              Navigator.of(c).pop();
+              _refresh();
+            },
+            child: Text('Sil', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteUsageById(String id) {
+    LocalRepo.instance.usages.removeWhere((e) => e.id == id);
+    LocalRepo.instance.saveToLocalStorage();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -97,7 +199,25 @@ class _UsageListScreenState extends State<UsageListScreen> {
                     child: ListTile(
                       title: Text(item.isEmpty ? 'Bilinmeyen' : item.name),
                       subtitle: Text('${u.quantity} ${item.unit} • ₺${u.cost.toStringAsFixed(2)} • ${u.persons} kişi'),
-                      trailing: Text('${u.date.day}/${u.date.month}/${u.date.year}'),
+                      trailing: SizedBox(
+                        width: 120,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.edit, size: 20),
+                              onPressed: () => _editUsage(u),
+                              constraints: BoxConstraints(minWidth: 40, minHeight: 40),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.delete, size: 20, color: Colors.red),
+                              onPressed: () => _deleteUsage(u),
+                              constraints: BoxConstraints(minWidth: 40, minHeight: 40),
+                            ),
+                            Text('${u.date.day}/${u.date.month}'),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 },
