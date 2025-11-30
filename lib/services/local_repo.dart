@@ -20,7 +20,6 @@ class LocalRepo {
   final List<StockItem> _stockItems = [];
   List<Usage> usages = [];
 
-  // localStorage keys
   static const String _stockItemsKey = 'catering_stock_items';
   static const String _usagesKey = 'catering_usages';
 
@@ -89,5 +88,4 @@ class LocalRepo {
       print('✗ Load error: $e');
     }
   }
-}
 }
